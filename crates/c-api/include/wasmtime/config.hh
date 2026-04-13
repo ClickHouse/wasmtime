@@ -620,6 +620,7 @@ public:
   }
 #endif // WASMTIME_FEATURE_POOLING_ALLOCATOR
 
+#ifdef WASMTIME_FEATURE_COMPONENT_MODEL
   /**
    * \brief Specifies whether support for concurrent execution of WebAssembly is
    * supported within this store.
@@ -630,6 +631,7 @@ public:
   void concurrency_support(bool enable) {
     wasmtime_config_concurrency_support_set(ptr.get(), enable);
   }
+#endif // WASMTIME_FEATURE_COMPONENT_MODEL
 };
 
 } // namespace wasmtime
