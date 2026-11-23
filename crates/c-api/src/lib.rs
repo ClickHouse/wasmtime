@@ -14,6 +14,8 @@
 
 #![expect(non_camel_case_types, reason = "matching C style, not Rust")]
 #![expect(unsafe_op_in_unsafe_fn, reason = "crate isn't migrated yet")]
+#![cfg_attr(wasmtime_cfi, allow(unstable_features))]
+#![cfg_attr(wasmtime_cfi, feature(cfi_encoding))]
 
 pub use wasmtime;
 

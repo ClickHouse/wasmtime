@@ -67,6 +67,15 @@ pub struct wasm_trap_t {
     pub(crate) error: Error,
 }
 
+/// Takes ownership of a trap returned by a C callback. Null means no trap.
+pub(crate) unsafe fn trap_from_raw(trap: *mut wasm_trap_t) -> Option<Box<wasm_trap_t>> {
+    if trap.is_null() {
+        None
+    } else {
+        Some(Box::from_raw(trap))
+    }
+}
+
 // This is currently only needed for the `wasm_trap_copy` API in the C API.
 //
 // For now the impl here is "fake it til you make it" since this is losing

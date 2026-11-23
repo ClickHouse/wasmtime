@@ -47,8 +47,8 @@ pub type wasmtime_func_async_callback_t = extern "C" fn(
     usize,
     *mut wasmtime_val_t,
     usize,
-    &mut Option<Box<wasm_trap_t>>,
-    &mut wasmtime_async_continuation_t,
+    *mut *mut wasm_trap_t,
+    *mut wasmtime_async_continuation_t,
 );
 
 #[repr(C)]
@@ -121,7 +121,7 @@ async fn invoke_c_async_callback<'a>(
     // Invoke the C function pointer.
     // The result will be a continuation which we will wrap in a Future.
     let mut caller = wasmtime_caller_t { caller };
-    let mut trap = None;
+    let mut trap: Option<Box<wasm_trap_t>> = None;
     extern "C" fn panic_callback(_: *mut c_void) -> bool {
         panic!("callback must be set")
     }
@@ -137,7 +137,8 @@ async fn invoke_c_async_callback<'a>(
         params.len(),
         out_results.as_mut_ptr(),
         out_results.len(),
-        &mut trap,
+        // `Option<Box<T>>` has the layout of a nullable `*mut T`.
+        (&raw mut trap).cast::<*mut wasm_trap_t>(),
         &mut continuation,
     );
     continuation.await;

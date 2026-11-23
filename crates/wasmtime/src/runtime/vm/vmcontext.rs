@@ -655,13 +655,37 @@ impl VMFuncRef {
                 ptr: me.as_ref().array_call.as_non_null(),
             }
             .native;
-            native(
-                me.as_ref().vmctx.as_non_null(),
+            let callee = me.as_ref().vmctx.as_non_null();
+            if callee.as_ref().magic == wasmtime_environ::VM_ARRAY_CALL_HOST_FUNC_MAGIC {
+                return native(
+                    callee,
+                    caller,
+                    args_and_results.cast(),
+                    args_and_results.len(),
+                );
+            }
+            Self::call_jit_array(
+                native,
+                callee,
                 caller,
                 args_and_results.cast(),
                 args_and_results.len(),
             )
         }
+    }
+
+    // JIT-generated code has no CFI type id (it is not in any jump table), so this call cannot be
+    // checked; host functions go through the checked call in `array_call_native`.
+    #[inline]
+    #[cfg_attr(wasmtime_cfi, sanitize(cfi = "off"))]
+    unsafe fn call_jit_array(
+        native: VMArrayCallNative,
+        callee: NonNull<VMOpaqueContext>,
+        caller: NonNull<VMContext>,
+        args: NonNull<ValRaw>,
+        len: usize,
+    ) -> bool {
+        unsafe { native(callee, caller, args, len) }
     }
 
     pub(crate) fn as_vm_function_import(&self) -> Option<&VMFunctionImport> {

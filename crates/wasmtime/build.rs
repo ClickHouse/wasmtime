@@ -5,6 +5,7 @@ fn main() {
 
     // NB: duplicating a workaround in the wasmtime-fiber build script.
     custom_cfg("asan", cfg_is("sanitize", "address"));
+    custom_cfg("wasmtime_cfi", is_cfi());
 
     let unix = cfg("unix");
     let windows = cfg("windows");
@@ -100,6 +101,12 @@ fn cfg_is(key: &str, val: &str) -> bool {
         .ok()
         .as_deref()
         == Some(val)
+}
+
+// Whether the target is built with the `cfi` or `kcfi` sanitizer.
+fn is_cfi() -> bool {
+    std::env::var("CARGO_CFG_SANITIZE")
+        .is_ok_and(|s| s.split(',').any(|s| s == "cfi" || s == "kcfi"))
 }
 
 fn custom_cfg(key: &str, enabled: bool) {

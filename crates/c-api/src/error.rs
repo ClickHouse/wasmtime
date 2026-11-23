@@ -2,11 +2,21 @@ use crate::{wasm_frame_vec_t, wasm_name_t};
 use wasmtime::{Error, Result, format_err};
 
 #[repr(C)]
+#[cfg_attr(wasmtime_cfi, cfi_encoding = "14wasmtime_error")]
 pub struct wasmtime_error_t {
     error: Error,
 }
 
 wasmtime_c_api_macros::declare_own!(wasmtime_error_t);
+
+/// Takes ownership of an error returned by a C callback. Null means no error.
+pub(crate) unsafe fn error_from_raw(error: *mut wasmtime_error_t) -> Option<Box<wasmtime_error_t>> {
+    if error.is_null() {
+        None
+    } else {
+        Some(Box::from_raw(error))
+    }
+}
 
 impl From<Error> for wasmtime_error_t {
     fn from(error: Error) -> wasmtime_error_t {

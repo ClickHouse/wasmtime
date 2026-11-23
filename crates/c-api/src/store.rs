@@ -66,6 +66,12 @@ pub type WasmtimeStoreContext<'a> = StoreContext<'a, WasmtimeStoreData>;
 pub type WasmtimeStoreContextMut<'a> = StoreContextMut<'a, WasmtimeStoreData>;
 pub type WasmtimeCaller<'a> = Caller<'a, WasmtimeStoreData>;
 
+/// Opaque target of a C `wasmtime_context_t *`, which is a [`WasmtimeStoreContext`].
+#[cfg_attr(wasmtime_cfi, cfi_encoding = "16wasmtime_context")]
+pub struct wasmtime_context_t {
+    _private: [u8; 0],
+}
+
 /// Representation of a `Store` for `wasmtime.h` This notably tries to move more
 /// burden of aliasing on the caller rather than internally, allowing for a more
 /// raw representation of contexts and such that requires less `unsafe` in the
@@ -151,11 +157,11 @@ pub const WASMTIME_UPDATE_DEADLINE_YIELD: wasmtime_update_deadline_kind_t = 1;
 pub extern "C" fn wasmtime_store_epoch_deadline_callback(
     store: &mut wasmtime_store_t,
     func: extern "C" fn(
-        WasmtimeStoreContext<'_>,
+        *const wasmtime_context_t,
         *mut c_void,
         *mut u64,
         *mut wasmtime_update_deadline_kind_t,
-    ) -> Option<Box<wasmtime_error_t>>,
+    ) -> *mut wasmtime_error_t,
     data: *mut c_void,
     finalizer: Option<extern "C" fn(*mut c_void)>,
 ) {
@@ -164,13 +170,19 @@ pub extern "C" fn wasmtime_store_epoch_deadline_callback(
         let _ = &foreign; // Move foreign into this closure
         let mut delta: u64 = 0;
         let mut kind = WASMTIME_UPDATE_DEADLINE_CONTINUE;
+        // `StoreContext` is `repr(transparent)` over the pointer C sees as `wasmtime_context_t *`.
+        let context = unsafe {
+            std::mem::transmute::<WasmtimeStoreContext<'_>, *const wasmtime_context_t>(
+                store_ctx.as_context(),
+            )
+        };
         let result = (func)(
-            store_ctx.as_context(),
+            context,
             foreign.data,
             &mut delta as *mut u64,
             &mut kind as *mut wasmtime_update_deadline_kind_t,
         );
-        match result {
+        match unsafe { crate::error_from_raw(result) } {
             Some(err) => Err((*err).into()),
             None if kind == WASMTIME_UPDATE_DEADLINE_CONTINUE => {
                 Ok(UpdateDeadline::Continue(delta))
