@@ -32,6 +32,13 @@ const FEATURES: &[&str] = &[
 // marked WASMTIME_FEATURE_LIST
 
 fn main() {
+    // Whether the target is built with the `cfi` or `kcfi` sanitizer.
+    println!("cargo:rustc-check-cfg=cfg(wasmtime_cfi)");
+    if env::var("CARGO_CFG_SANITIZE").is_ok_and(|s| s.split(',').any(|s| s == "cfi" || s == "kcfi"))
+    {
+        println!("cargo:rustc-cfg=wasmtime_cfi");
+    }
+
     println!("cargo:rerun-if-changed=cmake/features.cmake");
     println!("cargo:rerun-if-changed=cmake/install-headers.cmake");
     println!("cargo:rerun-if-changed=include");

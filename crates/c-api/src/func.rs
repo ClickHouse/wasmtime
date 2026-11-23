@@ -1,4 +1,4 @@
-use crate::{WasmtimeCaller, WasmtimeStoreData, wasm_trap_t};
+use crate::{WasmtimeCaller, WasmtimeStoreData, trap_from_raw, wasm_trap_t};
 use crate::{
     WasmtimeStoreContext, WasmtimeStoreContextMut, wasm_extern_t, wasm_functype_t, wasm_store_t,
     wasm_val_t, wasm_val_vec_t, wasmtime_error_t, wasmtime_extern_t, wasmtime_val_t,
@@ -25,16 +25,14 @@ pub struct wasm_func_t {
 
 wasmtime_c_api_macros::declare_ref!(wasm_func_t);
 
-pub type wasm_func_callback_t = extern "C" fn(
-    args: *const wasm_val_vec_t,
-    results: *mut wasm_val_vec_t,
-) -> Option<Box<wasm_trap_t>>;
+pub type wasm_func_callback_t =
+    extern "C" fn(args: *const wasm_val_vec_t, results: *mut wasm_val_vec_t) -> *mut wasm_trap_t;
 
 pub type wasm_func_callback_with_env_t = extern "C" fn(
     env: *mut std::ffi::c_void,
     args: *const wasm_val_vec_t,
     results: *mut wasm_val_vec_t,
-) -> Option<Box<wasm_trap_t>>;
+) -> *mut wasm_trap_t;
 
 impl wasm_func_t {
     pub(crate) fn try_from(e: &wasm_extern_t) -> Option<&wasm_func_t> {
@@ -98,7 +96,9 @@ pub unsafe extern "C" fn wasm_func_new(
     ty: &wasm_functype_t,
     callback: wasm_func_callback_t,
 ) -> Box<wasm_func_t> {
-    create_function(store, ty, move |params, results| callback(params, results))
+    create_function(store, ty, move |params, results| {
+        trap_from_raw(callback(params, results))
+    })
 }
 
 #[unsafe(no_mangle)]
@@ -112,7 +112,7 @@ pub unsafe extern "C" fn wasm_func_new_with_env(
     let finalizer = crate::ForeignData { data, finalizer };
     create_function(store, ty, move |params, results| {
         let _ = &finalizer; // move entire finalizer into this closure
-        callback(finalizer.data, params, results)
+        trap_from_raw(callback(finalizer.data, params, results))
     })
 }
 
@@ -204,6 +204,7 @@ pub extern "C" fn wasm_func_as_extern_const(f: &wasm_func_t) -> &wasm_extern_t {
 }
 
 #[repr(C)]
+#[cfg_attr(wasmtime_cfi, cfi_encoding = "15wasmtime_caller")]
 pub struct wasmtime_caller_t<'a> {
     pub(crate) caller: WasmtimeCaller<'a>,
 }
@@ -229,14 +230,10 @@ pub type wasmtime_func_callback_t = extern "C" fn(
     usize,
     *mut wasmtime_val_t,
     usize,
-) -> Option<Box<wasm_trap_t>>;
+) -> *mut wasm_trap_t;
 
-pub type wasmtime_func_unchecked_callback_t = extern "C" fn(
-    *mut c_void,
-    *mut wasmtime_caller_t,
-    *mut ValRaw,
-    usize,
-) -> Option<Box<wasm_trap_t>>;
+pub type wasmtime_func_unchecked_callback_t =
+    extern "C" fn(*mut c_void, *mut wasmtime_caller_t, *mut ValRaw, usize) -> *mut wasm_trap_t;
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn wasmtime_func_new(
@@ -290,7 +287,7 @@ pub(crate) unsafe fn c_callback_to_rust_fn(
             out_results.as_mut_ptr(),
             out_results.len(),
         );
-        if let Some(trap) = out {
+        if let Some(trap) = trap_from_raw(out) {
             return Err(trap.error);
         }
 
@@ -331,12 +328,12 @@ pub(crate) unsafe fn c_unchecked_callback_to_rust_fn(
     move |caller, values| {
         let _ = &foreign; // move entire foreign into this closure
         let mut caller = wasmtime_caller_t { caller };
-        match callback(
+        match trap_from_raw(callback(
             foreign.data,
             &mut caller,
             values.as_mut_ptr().cast(),
             values.len(),
-        ) {
+        )) {
             None => Ok(()),
             Some(trap) => Err(trap.error),
         }

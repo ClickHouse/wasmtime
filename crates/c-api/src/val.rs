@@ -149,6 +149,7 @@ pub unsafe extern "C" fn wasm_val_delete(val: *mut wasm_val_t) {
 }
 
 #[repr(C)]
+#[cfg_attr(wasmtime_cfi, cfi_encoding = "12wasmtime_val")]
 pub struct wasmtime_val_t {
     pub kind: wasmtime_valkind_t,
     pub of: wasmtime_val_union,
