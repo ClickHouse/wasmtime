@@ -1,10 +1,9 @@
-use crate::{WasmtimeCaller, WasmtimeStoreData, trap_from_raw, wasm_trap_t};
+use crate::{WasmtimeCaller, WasmtimeStoreData, error_from_panic, trap_from_raw, wasm_trap_t};
 use crate::{
     WasmtimeStoreContext, WasmtimeStoreContextMut, wasm_extern_t, wasm_functype_t, wasm_store_t,
     wasm_val_t, wasm_val_vec_t, wasmtime_error_t, wasmtime_extern_t, wasmtime_val_t,
     wasmtime_val_union,
 };
-use std::any::Any;
 use std::ffi::c_void;
 use std::mem::{self, MaybeUninit};
 use std::panic::{self, AssertUnwindSafe};
@@ -165,16 +164,6 @@ pub unsafe extern "C" fn wasm_func_call(
             let trap = Box::new(wasm_trap_t::new(err));
             Box::into_raw(trap)
         }
-    }
-}
-
-fn error_from_panic(panic: Box<dyn Any + Send>) -> Error {
-    if let Some(msg) = panic.downcast_ref::<String>() {
-        Error::msg(msg.clone())
-    } else if let Some(msg) = panic.downcast_ref::<&'static str>() {
-        Error::msg(*msg)
-    } else {
-        Error::msg("rust panic happened")
     }
 }
 

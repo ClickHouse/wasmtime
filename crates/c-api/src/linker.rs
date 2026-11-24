@@ -1,7 +1,7 @@
 use crate::{
-    WasmtimeStoreContext, WasmtimeStoreContextMut, bad_utf8, handle_result, wasm_engine_t,
-    wasm_functype_t, wasm_trap_t, wasmtime_error_t, wasmtime_extern_t, wasmtime_instance_pre_t,
-    wasmtime_module_t,
+    WasmtimeStoreContext, WasmtimeStoreContextMut, bad_utf8, catch_panic, handle_result,
+    wasm_engine_t, wasm_functype_t, wasm_trap_t, wasmtime_error_t, wasmtime_extern_t,
+    wasmtime_instance_pre_t, wasmtime_module_t,
 };
 use std::ffi::c_void;
 use std::mem::MaybeUninit;
@@ -141,8 +141,10 @@ pub extern "C" fn wasmtime_linker_instantiate(
     instance_ptr: &mut Instance,
     trap_ptr: &mut *mut wasm_trap_t,
 ) -> Option<Box<wasmtime_error_t>> {
-    let result = linker.linker.instantiate(store, &module.module);
-    super::instance::handle_instantiate(result, instance_ptr, trap_ptr)
+    catch_panic(|| {
+        let result = linker.linker.instantiate(store, &module.module);
+        super::instance::handle_instantiate(result, instance_ptr, trap_ptr)
+    })
 }
 
 #[unsafe(no_mangle)]

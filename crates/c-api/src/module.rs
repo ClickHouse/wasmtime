@@ -141,12 +141,14 @@ pub unsafe extern "C" fn wasmtime_module_new(
     len: usize,
     out: &mut *mut wasmtime_module_t,
 ) -> Option<Box<wasmtime_error_t>> {
-    handle_result(
-        Module::from_binary(&engine.engine, crate::slice_from_raw_parts(wasm, len)),
-        |module| {
-            *out = Box::into_raw(Box::new(wasmtime_module_t { module }));
-        },
-    )
+    crate::catch_panic(|| {
+        handle_result(
+            Module::from_binary(&engine.engine, crate::slice_from_raw_parts(wasm, len)),
+            |module| {
+                *out = Box::into_raw(Box::new(wasmtime_module_t { module }));
+            },
+        )
+    })
 }
 
 #[unsafe(no_mangle)]
