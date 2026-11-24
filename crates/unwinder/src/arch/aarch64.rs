@@ -120,6 +120,18 @@ pub unsafe fn resume_to_exception_handler(
     let fp = u64::try_from(fp).unwrap();
     let payload1 = u64::try_from(payload1).unwrap();
     let payload2 = u64::try_from(payload2).unwrap();
+    // This frame is never popped: release its ASan stack poison here, after
+    // the prologue has poisoned its redzones (the call in
+    // `Handler::resume_tailcc` runs before this frame is set up).
+    #[cfg(asan)]
+    {
+        unsafe extern "C" {
+            fn __asan_handle_no_return();
+        }
+        unsafe {
+            __asan_handle_no_return();
+        }
+    }
     unsafe {
         core::arch::asm!(
             "mov sp, x2",
