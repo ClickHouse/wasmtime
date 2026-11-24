@@ -52,6 +52,28 @@ pub(crate) fn handle_result<T>(
     }
 }
 
+/// Runs `f`, turning a panic into an error: a panic that unwinds out of an `extern "C"` function aborts the process.
+pub(crate) fn catch_panic(
+    f: impl FnOnce() -> Option<Box<wasmtime_error_t>>,
+) -> Option<Box<wasmtime_error_t>> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)) {
+        Ok(result) => result,
+        Err(panic) => Some(Box::new(wasmtime_error_t {
+            error: error_from_panic(panic),
+        })),
+    }
+}
+
+pub(crate) fn error_from_panic(panic: Box<dyn std::any::Any + Send>) -> Error {
+    if let Some(msg) = panic.downcast_ref::<String>() {
+        Error::msg(msg.clone())
+    } else if let Some(msg) = panic.downcast_ref::<&'static str>() {
+        Error::msg(*msg)
+    } else {
+        Error::msg("rust panic happened")
+    }
+}
+
 pub(crate) fn bad_utf8() -> Option<Box<wasmtime_error_t>> {
     Some(Box::new(wasmtime_error_t {
         error: format_err!("input was not valid utf-8"),
